@@ -6,6 +6,8 @@ import helmet from "helmet";
 
 // import routes
 import prRoutes from "./routes/prRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import testRoutes from "./routes/testRoutes.js";
 
 // import middlewares
 import { globalError } from "./middlewares/errorHandler.js";
@@ -20,6 +22,8 @@ app.use(express.json());
 
 // routes, endpoint api
 app.use("/api/jadwal", prRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/test", testRoutes);
 
 // error handler
 app.use((req, res, next) => {
