@@ -2,66 +2,113 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-import { Auth } from "../models/authModel.js";
+// import database schema/model
+import User from "../models/User.js";
 
 // hash strength
 const SALT_ROUNDS = 10;
 
-// auth handler
+// handler function for generate JWT
+const generateToken = (user) => {
+  return jwt.sign(
+    {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    },
+    process.env.JWT_TOKEN,
+    { expiresIn: "1d" },
+  );
+};
+
 export const register = async (req, res) => {
   try {
-    // get username and password
-    const { username, password } = req.body;
+    // get username, email, and password from request
+    const { username, email, password } = req.body;
 
-    // Check if the user already exists
-    const existingUser = await Auth.findByUsername(username);
+    // check email exists or not
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: "username sudah terdaftar!" });
+      return res.status(400).json({
+        status: "Error",
+        message: "The email is already registered; please use another email.",
+      });
     }
 
     // hash password
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
-    // save new user
-    await Auth.create({ username, password: hashedPassword });
+    // create new user
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      role: "user",
+    });
 
-    res.status(201).json({ message: "User berhasil didaftarkan!" });
+    await newUser.save();
+
+    return res.status(201).json({
+      status: "Success",
+      message: "Registration successful! Please log in.",
+      data: {
+        id: newUser._id,
+        username: newUser.username,
+        email: newUser.email,
+        role: newUser.role,
+      },
+    });
   } catch (err) {
-    res.status(500).json({ message: "Server Error", error: err.message });
+    console.error(`Xerra Log - Error: ${err.message}`);
+    return res.status(500).json({
+      status: "Error",
+      message: "500 A server error occurred.",
+    });
   }
 };
 
 export const login = async (req, res) => {
   try {
-    // get username and password
-    const { username, password } = req.body;
+    // get username, email, and password from request
+    const { username, email, password } = req.body;
 
-    // find username in database
-    const user = await Auth.findByUsername(username);
-
+    const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ message: "User tidak ditemukan!" });
+      return res.status(400).json({
+        status: "Error",
+        message: "Incorrect email or password!",
+      });
     }
 
-    // password match check
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      return res.status(401).json({ message: "Password salah!" });
+    // password validate
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(400).json({
+        status: "Error",
+        message: "Incorrect email or password!",
+      });
     }
 
-    // sign token to user
-    if (!process.env.JWT_TOKEN) {
-      throw new Error("JWT TOKEN di .env ga ada!");
-    }
-    const token = jwt.sign({ username: user.username }, process.env.JWT_TOKEN, {
-      expiresIn: "24h",
-    });
+    // token validate
+    const token = generateToken(user);
 
     // status
-    res.status(200).json({ message: "Login berhasil!", token });
+    res.status(200).json({
+      status: "Success",
+      message: "Login successful!",
+      token,
+      data: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+      },
+    });
   } catch (err) {
-    //status
-    res.status(500).json({ message: "Server Error", error: err.message });
+    console.error(`Xerra log - Login error: ${err.message}`);
+    return res.status(500).json({
+      status: "Error",
+      message: "500 A server error occurred",
+    });
   }
 };
